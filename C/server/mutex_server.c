@@ -9,6 +9,10 @@
 
 int globalVar = 0; // 공유 자원으로 사용할 전역 변수
 
+// mutex lock
+// PTHREAD_MUTEX_INITIALIZER 는 매크로, 전처리기가 해당 매크로를 만나면 mutex를 생성한다.
+pthread_mutex_t globalVar_lock = PTHREAD_MUTEX_INITIALIZER;
+
 // 하나의 클라이언트를 핸들링 하는 함수.
 // 한 개의 스레드를 통해 관리된다.
 void *handleClient(void *arg)
@@ -22,13 +26,19 @@ void *handleClient(void *arg)
         buffer[readSize] = '\0';
         printf("Received message from client: %s\n", buffer);
 
+        // 전역 변수 액세스 전, 뮤텍스 락
+        pthread_mutex_lock(&globalVar_lock);
+
         // 경쟁 상태 발생 가능성이 있는 부분
         // 전역 변수에 접근하여 1증가 후, 해당 값을 클라이언트에 보낸다.
         globalVar++;
         printf("globalVar is now: %d\n", globalVar);
 
+        // 전역 변수 액세스 후, 뮤텍스 해제
+        pthread_mutex_unlock(&globalVar_lock);
+
         char result[50];
-        printf(result, "%s %d", "globalVar is", globalVar);
+        sprintf(result, "%s %d", "globalVar is", globalVar);
 
         send(clientSocket, result, strlen(result), 0);
     }

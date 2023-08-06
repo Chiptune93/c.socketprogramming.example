@@ -4,8 +4,12 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <pthread.h>
+#include <semaphore.h>
 
 #define MAX_CLIENTS 10
+
+// 세마포어 변수 선언
+sem_t semaphore;
 
 int globalVar = 0; // 공유 자원으로 사용할 전역 변수
 
@@ -22,13 +26,19 @@ void *handleClient(void *arg)
         buffer[readSize] = '\0';
         printf("Received message from client: %s\n", buffer);
 
+        // 전역 변수 액세스 전, 세마포어 wait
+        sem_wait(&semaphore);
+
         // 경쟁 상태 발생 가능성이 있는 부분
         // 전역 변수에 접근하여 1증가 후, 해당 값을 클라이언트에 보낸다.
         globalVar++;
         printf("globalVar is now: %d\n", globalVar);
 
         char result[50];
-        printf(result, "%s %d", "globalVar is", globalVar);
+        sprintf(result, "%s %d", "globalVar is", globalVar);
+
+        // 전역 변수 액세스 후, 세마포어 post
+        sem_post(&semaphore);
 
         send(clientSocket, result, strlen(result), 0);
     }
@@ -73,6 +83,9 @@ int main()
 
     printf("Server started. Waiting for connections...\n");
 
+    // 세마포어 초기화, 세 번째 인자를 0으로 넣으면 sem_wait을 먼저 호출한 쓰레드에서 블로킹이 발생하는 것을 확인할 수 있다.
+    sem_init(&semaphore, 0, 1);
+
     while (1)
     {
         clientSocket = accept(serverSocket, (struct sockaddr *)&clientAddr, &addrSize);
@@ -100,5 +113,9 @@ int main()
     }
 
     close(serverSocket);
+    
+    // 세마포어 해제
+    sleep(10);
+    sem_destroy(&semaphore);
     return 0;
 }
